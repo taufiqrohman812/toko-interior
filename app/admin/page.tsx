@@ -11,8 +11,8 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState("");
 
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   
   // FORM STATE: Mencakup semua fitur (Harga Coret & Berat)
   const [form, setForm] = useState({ 
