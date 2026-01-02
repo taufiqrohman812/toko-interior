@@ -1,33 +1,34 @@
 import { NextResponse } from 'next/server';
-import midtransClient from 'midtrans-client';
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(request) {
-  const { orderId, grossAmount, customerDetails, items } = await request.json();
+  const data = await request.json();
 
-  // Inisialisasi Midtrans Snap
-  let snap = new midtransClient.Snap({
-    isProduction: false, // Tetap false karena kita pakai Sandbox
-    serverKey: process.env.MIDTRANS_SERVER_KEY,
-    clientKey: process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY
-  });
+  // Ambil data penting dari Midtrans
+  const orderId = data.order_id;
+  const transactionStatus = data.transaction_status;
+  const fraudStatus = data.fraud_status;
 
-  // Parameter Transaksi
-  let parameter = {
-    transaction_details: {
-      order_id: orderId,
-      gross_amount: grossAmount,
-    },
-    customer_details: customerDetails,
-    item_details: items, // Daftar barang yang dibeli
-    credit_card: {
-      secure: true
+  console.log(`Webhook diterima untuk Order: ${orderId} - Status: ${transactionStatus}`);
+
+  // Logika update status ke Supabase
+  if (transactionStatus === 'capture' || transactionStatus === 'settlement') {
+    if (fraudStatus === 'accept' || !fraudStatus) {
+      // UPDATE STATUS JADI LUNAS
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'Lunas' })
+        .eq('id', orderId);
+        
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
-  };
-
-  try {
-    const transaction = await snap.createTransaction(parameter);
-    return NextResponse.json(transaction); // Mengirim token transaksi ke frontend
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
+    // UPDATE STATUS JADI GAGAL
+    await supabase
+      .from('orders')
+      .update({ status: 'Gagal' })
+      .eq('id', orderId);
   }
+
+  return NextResponse.json({ message: 'Webhook Berhasil' });
 }
